@@ -49,15 +49,16 @@
     - meta: flush_handlers
 
     - name: "Elimina los namservers existentes en {{ resolv_conf }}"
-      replace:
+      lineinfile:
         path: "{{ resolv_conf }}"
         regexp: '^nameserver .+\n?$'
-        replace: ''
+        state: absent
 
     - name: "Annade el namserver {{ ansible_facts['default_ipv4']['address'] }} a {{ resolv_conf }}"
       lineinfile:
         path: "{{ resolv_conf }}"
         line: "nameserver {{ ansible_facts['default_ipv4']['address'] }}"
+        state: present
   
   handlers:
     - name: arranca_habilita_bind
