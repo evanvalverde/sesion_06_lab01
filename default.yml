@@ -1,0 +1,73 @@
+---
+- name: "Implementa el lab 01 de la sesion 06"
+  # force_handlers: yes
+  hosts: nodo01
+  vars:
+    named_config: "/etc/named.conf"
+    named_options_config: "/etc/sysconfig/named"
+    resolv_conf: "/etc/resolv.conf"
+
+  tasks:
+    - name: "Instala la paqueteria de bind y bind-utils, desencadenando su arranque y habilitacion permanente"
+      yum:
+        name: "{{ item }}"
+        state: present
+      loop:
+      - bind
+      - bind-utils
+      notify: arranca_habilita_bind
+    
+    - meta: flush_handlers
+
+    - name: "Permite el servicio DNS en el firewall local"
+      firewalld:
+        service: dns
+        state: enabled
+        permanent: yes
+        immediate: yes
+
+    - name: "Comenta la opcion listen-on port 53 { 127.0.0.1; }; en {{ named_config }}"
+      replace:
+        path: "{{ named_config }}"
+        regexp: '^(\s+listen-on port 53 { 127\.0\.0\.1; };)$'
+        replace: '# \1'
+        validate: 'named-checkconf'
+      
+    - name: "Comenta la opcion listen-on-v6 port 53 { ::1; }; en {{ named_config }}"
+      replace:
+        path: "{{ named_config }}"
+        regexp: '^(\s+listen-on-v6 port 53 { ::1; };)$'
+        replace: '# \1'
+        validate: 'named-checkconf'
+
+    - name: "Modifica {{ named_options_config }} para indicar que solo queremos trabajar con IPv4"
+      lineinfile:
+        path: "{{ named_options_config }}"
+        line: 'OPTIONS="-4"'
+        state: present
+    
+    - meta: flush_handlers
+
+    - name: "Elimina los namservers existentes en {{ resolv_conf }}"
+      replace:
+        path: "{{ resolv_conf }}"
+        regexp: '^nameserver .+\n?$'
+        replace: ''
+
+    - name: "Annade el namserver {{ ansible_facts['default_ipv4']['address'] }} a {{ resolv_conf }}"
+      lineinfile:
+        path: "{{ resolv_conf }}"
+        line: "nameserver {{ ansible_facts['default_ipv4']['address'] }}"
+  
+  handlers:
+    - name: arranca_habilita_bind
+      service:
+        name: named
+        state: started
+        enabled: yes
+    
+    - name: reinicia_bind
+      service:
+        name: named
+        state: restarted
+...
