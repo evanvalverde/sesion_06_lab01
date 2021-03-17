@@ -1,6 +1,5 @@
 ---
 - name: "Implementa el lab 01 de la sesion 06"
-  # force_handlers: yes
   hosts: nodo01
   vars:
     named_config: "/etc/named.conf"
@@ -13,9 +12,9 @@
         name: "{{ item }}"
         state: present
       loop:
-      - bind
-      - bind-utils
-      notify: arranca_habilita_bind
+        - bind
+        - bind-utils
+      notify: "arranca y habilita named"
     
     - meta: flush_handlers
 
@@ -31,20 +30,21 @@
         path: "{{ named_config }}"
         regexp: '^(\s+listen-on port 53 { 127\.0\.0\.1; };)$'
         replace: '# \1'
-        validate: 'named-checkconf'
+        validate: 'named-checkconf %s'
       
     - name: "Comenta la opcion listen-on-v6 port 53 { ::1; }; en {{ named_config }}"
       replace:
         path: "{{ named_config }}"
         regexp: '^(\s+listen-on-v6 port 53 { ::1; };)$'
         replace: '# \1'
-        validate: 'named-checkconf'
+        validate: 'named-checkconf %s'
 
     - name: "Modifica {{ named_options_config }} para indicar que solo queremos trabajar con IPv4"
       lineinfile:
         path: "{{ named_options_config }}"
         line: 'OPTIONS="-4"'
         state: present
+      notify: "reinicia named"
     
     - meta: flush_handlers
 
@@ -59,16 +59,31 @@
         path: "{{ resolv_conf }}"
         line: "nameserver {{ ansible_facts['default_ipv4']['address'] }}"
         state: present
+      notify: "tareas finales"
   
   handlers:
-    - name: arranca_habilita_bind
+    - name: "arranca y habilita named"
       service:
         name: named
         state: started
         enabled: yes
     
-    - name: reinicia_bind
+    - name: "reinicia named"
       service:
         name: named
         state: restarted
+
+    - name: "reinicia el servidor"
+      reboot:
+      listen: "tareas finales"
+
+    - name: "Comprueba que el servicio named está levantado"
+      service_facts:
+      register: estado_servicios
+      listen: "tareas finales"
+
+    - name: "Mostrar el estado del servicio named"
+      debug:
+        var: estado_servicios["ansible_facts"]["services"]["named.service"]
+      listen: "tareas finales"
 ...
